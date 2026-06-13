@@ -11,6 +11,7 @@
 
 import capa_hash.sha256
 import capa_hash.hmac
+import capa_hash.verify
 
 fun main(stdio: Stdio)
     let message = "The quick brown fox jumps over the lazy dog"
@@ -24,11 +25,12 @@ fun main(stdio: Stdio)
     let tag = hmac_sha256_hex_utf8(key, message)
     stdio.println("hmac:    ${tag}")
 
-    // Recompute and compare. (For authenticating an untrusted tag,
-    // a real verifier should compare in constant time; this demo
-    // just shows the round-trip.)
+    // Recompute and verify the tag in CONSTANT TIME. A real verifier
+    // authenticating an untrusted tag must not compare with `==` (it
+    // short-circuits at the first differing byte, a timing oracle);
+    // `strings_equal` looks at every byte. See capa_hash.verify.
     let again = hmac_sha256_hex_utf8(key, message)
-    if again == tag
+    if strings_equal(again, tag)
         stdio.println("verify:  ok")
     else
         stdio.println("verify:  MISMATCH")

@@ -1,0 +1,104 @@
+// tests/test_verify.capa
+//
+// Constant-time byte/string comparison. A functional test cannot
+// observe TIMING, so it cannot prove the absence of a short-circuit
+// directly. What it CAN prove is the property that makes the
+// constant-time loop correct: the result is right no matter WHERE the
+// first difference falls (first byte, last byte, middle, or nowhere),
+// which is exactly the set of cases an early-return implementation
+// would special-case. Paired with the `@constant_time` marker proven
+// by `capa --manifest` (no branch / index on byte content), this
+// pins down both correctness and the branchless shape.
+
+import capa_test.testing
+import capa_hash.verify
+import capa_hash.hmac
+import support
+
+fun main(stdio: Stdio)
+    let t = tester()
+
+    // Equal byte lists -> true.
+    t.eq_bool(stdio, "bytes_equal_same",
+        bytes_equal([0x01, 0x02, 0x03, 0x04], [0x01, 0x02, 0x03, 0x04]), true)
+
+    // Difference in the FIRST byte -> false.
+    t.eq_bool(stdio, "bytes_diff_first",
+        bytes_equal([0x99, 0x02, 0x03, 0x04], [0x01, 0x02, 0x03, 0x04]), false)
+
+    // Difference in the LAST byte -> false.
+    t.eq_bool(stdio, "bytes_diff_last",
+        bytes_equal([0x01, 0x02, 0x03, 0x99], [0x01, 0x02, 0x03, 0x04]), false)
+
+    // Difference in the MIDDLE -> false.
+    t.eq_bool(stdio, "bytes_diff_middle",
+        bytes_equal([0x01, 0x02, 0x99, 0x04], [0x01, 0x02, 0x03, 0x04]), false)
+
+    // Differing lengths -> false (length is not secret, so this short-
+    // circuits deliberately; the bytes that DO overlap are equal here,
+    // to show the decision is on length, not content).
+    t.eq_bool(stdio, "bytes_len_mismatch",
+        bytes_equal([0x01, 0x02, 0x03], [0x01, 0x02, 0x03, 0x04]), false)
+    t.eq_bool(stdio, "bytes_len_mismatch_rev",
+        bytes_equal([0x01, 0x02, 0x03, 0x04], [0x01, 0x02, 0x03]), false)
+
+    // Two empty lists -> true.
+    let empty: List<Int> = []
+    t.eq_bool(stdio, "bytes_empty", bytes_equal(empty, empty), true)
+
+    // Empty vs non-empty -> false (length mismatch).
+    t.eq_bool(stdio, "bytes_empty_vs_one",
+        bytes_equal(empty, [0x00]), false)
+
+    // The 0xFF mask folds out-of-range values: 256 == 0, -1 == 255.
+    t.eq_bool(stdio, "bytes_mask_256_eq_0",
+        bytes_equal([256], [0]), true)
+    t.eq_bool(stdio, "bytes_mask_neg1_eq_255",
+        bytes_equal([0 - 1], [255]), true)
+
+    // Single-element lists, both branches.
+    t.eq_bool(stdio, "bytes_one_same", bytes_equal([42], [42]), true)
+    t.eq_bool(stdio, "bytes_one_diff", bytes_equal([42], [43]), false)
+
+    // ---- string wrapper ----
+
+    // Equal strings -> true; differing -> false; different length ->
+    // false; empty pair -> true.
+    t.eq_bool(stdio, "str_same",
+        strings_equal("abc123", "abc123"), true)
+    t.eq_bool(stdio, "str_diff",
+        strings_equal("abc123", "abc124"), false)
+    t.eq_bool(stdio, "str_len_mismatch",
+        strings_equal("abc", "abcd"), false)
+    t.eq_bool(stdio, "str_empty",
+        strings_equal("", ""), true)
+    // UTF-8 multi-byte content compares over its bytes.
+    t.eq_bool(stdio, "str_utf8_same",
+        strings_equal("café-日本-🔒", "café-日本-🔒"), true)
+
+    // ---- the real use case: verifying an HMAC tag in constant time ----
+
+    let key = "shared-secret"
+    let message = "the message"
+    let tag = hmac_sha256_hex_utf8(key, message)
+
+    // A correct recomputation verifies.
+    let good = hmac_sha256_hex_utf8(key, message)
+    t.eq_bool(stdio, "hmac_tag_match",
+        strings_equal(good, tag), true)
+
+    // A tag computed under a different key does NOT verify.
+    let forged = hmac_sha256_hex_utf8("wrong-secret", message)
+    t.eq_bool(stdio, "hmac_tag_mismatch",
+        strings_equal(forged, tag), false)
+
+    // Same check at the raw-byte level.
+    let tag_bytes = hmac_sha256_bytes(key.bytes(), message.bytes())
+    let good_bytes = hmac_sha256_bytes(key.bytes(), message.bytes())
+    t.eq_bool(stdio, "hmac_bytes_match",
+        bytes_equal(good_bytes, tag_bytes), true)
+    let forged_bytes = hmac_sha256_bytes("wrong-secret".bytes(), message.bytes())
+    t.eq_bool(stdio, "hmac_bytes_mismatch",
+        bytes_equal(forged_bytes, tag_bytes), false)
+
+    t.finish(stdio)
