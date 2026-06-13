@@ -1,0 +1,92 @@
+// tests/test_sha256.capa
+//
+// SHA-256 and SHA-224 against the official NIST FIPS 180-4 vectors
+// (empty, "abc", the 448-bit one-block-boundary message, and the
+// 896-bit two-block message), plus UTF-8 multi-byte text, an empty
+// input, and a multi-kilobyte input, each cross-checked against the
+// Python hashlib oracle over the identical bytes.
+
+import capa_test.testing
+import capa_hash.sha256
+import support
+
+fun main(stdio: Stdio)
+    let t = tester()
+
+    // --- SHA-256, NIST FIPS 180-4 ---
+
+    t.eq_str(stdio, "sha256_empty",
+        sha256_hex_utf8(""),
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+
+    t.eq_str(stdio, "sha256_abc",
+        sha256_hex_utf8("abc"),
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+
+    // 448-bit message (55 bytes: forces padding into the same block
+    // up to the 56-byte boundary).
+    t.eq_str(stdio, "sha256_448bit",
+        sha256_hex_utf8("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"),
+        "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1")
+
+    // 896-bit message (112 bytes: two full blocks).
+    t.eq_str(stdio, "sha256_896bit",
+        sha256_hex_utf8("abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu"),
+        "cf5b16a778af8380036ce59e7b0492370b249b11e8f07a51afac45037afee9d1")
+
+    // --- SHA-224, NIST FIPS 180-4 ---
+
+    t.eq_str(stdio, "sha224_empty",
+        sha224_hex_utf8(""),
+        "d14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42f")
+
+    t.eq_str(stdio, "sha224_abc",
+        sha224_hex_utf8("abc"),
+        "23097d223405d8228642a477bda255b32aadbce4bda0b3f7e36c9da7")
+
+    t.eq_str(stdio, "sha224_448bit",
+        sha224_hex_utf8("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"),
+        "75388b16512776cc5dba5da1fd890150b0c6455cb4f58b1952522525")
+
+    t.eq_str(stdio, "sha224_896bit",
+        sha224_hex_utf8("abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu"),
+        "c97ca9a559850ce97a04a96def6d99a9e0e0e2ab14e6b8df265fc0b3")
+
+    // --- UTF-8 multi-byte: hashed over the same UTF-8 bytes as the
+    // Python oracle (Latin-1 accents, CJK, and an astral emoji). ---
+
+    let utf = "héllo wörld café 日本語 🎉"
+    t.eq_str(stdio, "sha256_utf8",
+        sha256_hex_utf8(utf),
+        "1c826ff39f5cc6d98d675823f7db3062d57a6d808a52ad0db0cb1d5c396a7dd8")
+    t.eq_str(stdio, "sha224_utf8",
+        sha224_hex_utf8(utf),
+        "c9288e36edd11208827f08e6ec9ed7489518b0e1e95469cc9e57b5e2")
+
+    // --- Empty raw-byte input (the List<Int> door, not the String
+    // door) matches the empty digest. ---
+
+    let no_bytes: List<Int> = []
+    t.eq_str(stdio, "sha256_empty_bytes",
+        sha256_hex(no_bytes),
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+
+    // --- Large input: "capa" x 2000 = 8000 bytes, oracle-checked. ---
+
+    let big = repeat_str("capa", 2000)
+    t.eq_int(stdio, "big_len", big.length(), 8000)
+    t.eq_str(stdio, "sha256_big",
+        sha256_hex_utf8(big),
+        "156c0cb8385cd2635ce2029e46623b4200dcf0148fd467e3147affd3fae54452")
+    t.eq_str(stdio, "sha224_big",
+        sha224_hex_utf8(big),
+        "991f89424fdfcc8ddfebc59554524ab815429738b7022f231e617d07")
+
+    // --- The raw-bytes digest agrees with the hex digest. ---
+
+    let raw = sha256_bytes("abc".bytes())
+    t.eq_int(stdio, "sha256_bytes_len", raw.length(), 32)
+    t.eq_int(stdio, "sha256_bytes_first", raw[0], 0xba)
+    t.eq_int(stdio, "sha256_bytes_last", raw[31], 0xad)
+
+    t.finish(stdio)

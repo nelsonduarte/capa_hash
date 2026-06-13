@@ -1,0 +1,35 @@
+// tests/support.capa
+//
+// Byte-list builders shared by the suites. The official HMAC and
+// some SHA fixtures are given as raw byte values (0x0b, 0xcd, 0xaa)
+// rather than text, so the tests construct them directly.
+
+/// A list of `count` copies of `value`.
+pub fun repeat_byte(value: Int, count: Int) -> List<Int>
+    let out: List<Int> = []
+    var i = 0
+    while i < count
+        out.push(value)
+        i = i + 1
+    return out
+
+/// The ascending byte sequence start, start+1, ..., end (inclusive).
+pub fun byte_range(start: Int, end: Int) -> List<Int>
+    let out: List<Int> = []
+    var v = start
+    while v <= end
+        out.push(v)
+        v = v + 1
+    return out
+
+/// Concatenate `s` with itself until it reaches at least `n` chars,
+/// then take exactly `n`. Used to build multi-kilobyte inputs whose
+/// expected hash is computed by the Python oracle over the same
+/// bytes.
+pub fun repeat_str(s: String, times: Int) -> String
+    var out = ""
+    var i = 0
+    while i < times
+        out = "${out}${s}"
+        i = i + 1
+    return out

@@ -1,0 +1,61 @@
+// tests/test_hmac.capa
+//
+// HMAC-SHA256 against the official RFC 4231 test vectors (cases 1,
+// 2, 4, 6, 7, the last two using a key larger than the 64-byte
+// block, which exercises the hash-the-key-first path), plus an
+// empty key + empty message and a multi-kilobyte message, both
+// cross-checked against the Python hmac oracle.
+
+import capa_test.testing
+import capa_hash.hmac
+import support
+
+fun main(stdio: Stdio)
+    let t = tester()
+
+    // Case 1: key = 0x0b x 20, data = "Hi There".
+    t.eq_str(stdio, "hmac_case1",
+        hmac_sha256_hex(repeat_byte(0x0b, 20), "Hi There".bytes()),
+        "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7")
+
+    // Case 2: key = "Jefe", data = "what do ya want for nothing?".
+    t.eq_str(stdio, "hmac_case2",
+        hmac_sha256_hex_utf8("Jefe", "what do ya want for nothing?"),
+        "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843")
+
+    // Case 4: key = 0x01..0x19, data = 0xcd x 50.
+    t.eq_str(stdio, "hmac_case4",
+        hmac_sha256_hex(byte_range(0x01, 0x19), repeat_byte(0xcd, 50)),
+        "82558a389a443c0ea4cc819899f2083a85f0faa3e578f8077a2e3ff46729665b")
+
+    // Case 6: key = 0xaa x 131 (> block, hashed first), data is a
+    // label.
+    t.eq_str(stdio, "hmac_case6",
+        hmac_sha256_hex(repeat_byte(0xaa, 131),
+            "Test Using Larger Than Block-Size Key - Hash Key First".bytes()),
+        "60e431591ee0b67f0d8a26aacbf5b77f8e0bc6213728c5140546040f0ee37f54")
+
+    // Case 7: key = 0xaa x 131, longer data.
+    t.eq_str(stdio, "hmac_case7",
+        hmac_sha256_hex(repeat_byte(0xaa, 131),
+            "This is a test using a larger than block-size key and a larger than block-size data. The key needs to be hashed before being used by the HMAC algorithm.".bytes()),
+        "9b09ffa71b942fcb27635fbcd5b0e944bfdc63644f0713938a7f51535c3a35e2")
+
+    // Empty key and empty message (oracle: hmac over b"" / b"").
+    let no_bytes: List<Int> = []
+    t.eq_str(stdio, "hmac_empty",
+        hmac_sha256_hex(no_bytes, no_bytes),
+        "b613679a0814d9ec772f95d778c35fc5ff1697c493715653c6c712144292c5ad")
+
+    // Multi-kilobyte message under a short key (oracle-checked).
+    let big = repeat_str("capa", 2000)
+    t.eq_str(stdio, "hmac_big",
+        hmac_sha256_hex_utf8("secret-key", big),
+        "e4f822390b75750c757b7b5f4d9dccbfdf0f8346c03c8e1a270d0b65c48d149d")
+
+    // The raw-bytes HMAC agrees with the hex form.
+    let raw = hmac_sha256_bytes(repeat_byte(0x0b, 20), "Hi There".bytes())
+    t.eq_int(stdio, "hmac_bytes_len", raw.length(), 32)
+    t.eq_int(stdio, "hmac_bytes_first", raw[0], 0xb0)
+
+    t.finish(stdio)
