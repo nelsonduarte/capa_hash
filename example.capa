@@ -1,0 +1,34 @@
+// example.capa
+//
+// Hash a String and verify an HMAC. The library itself is pure (no
+// capabilities at all); the only capability here is the example's
+// own Stdio, used to print. The hashing functions never touch it.
+//
+// Run from the repository root:
+//
+//     capa --run example.capa
+//     capa --wasm --run example.capa   # byte-identical output
+
+import capa_hash.sha256
+import capa_hash.hmac
+
+fun main(stdio: Stdio)
+    let message = "The quick brown fox jumps over the lazy dog"
+
+    stdio.println("message: ${message}")
+    stdio.println("sha256:  ${sha256_hex_utf8(message)}")
+    stdio.println("sha224:  ${sha224_hex_utf8(message)}")
+
+    // Authenticate the message under a shared secret, then verify.
+    let key = "shared-secret"
+    let tag = hmac_sha256_hex_utf8(key, message)
+    stdio.println("hmac:    ${tag}")
+
+    // Recompute and compare. (For authenticating an untrusted tag,
+    // a real verifier should compare in constant time; this demo
+    // just shows the round-trip.)
+    let again = hmac_sha256_hex_utf8(key, message)
+    if again == tag
+        stdio.println("verify:  ok")
+    else
+        stdio.println("verify:  MISMATCH")
