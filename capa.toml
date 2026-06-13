@@ -1,0 +1,22 @@
+# capa_hash package manifest. The library is pure Capa with zero
+# capabilities and zero shipping dependencies: SHA-256, SHA-224 and
+# HMAC-SHA256, computed over bytes with no Fs, Net, Env, Time, Rand
+# or Unsafe anywhere. `capa --manifest` proves the empty surface.
+#
+# capa_test is a dev-dependency, resolved only when this repository
+# is itself the install root (running its own tests), never when
+# capa_hash is consumed downstream. It is pinned to its published
+# v0.1.0 tag with the publisher verify_key: the same git + tag +
+# verify_key shape a real consumer uses, so `capa install` enforces
+# the full supply-chain check (lockfile SHA + GPG tag signature +
+# SLSA L2 provenance) on it too.
+
+[package]
+name = "capa_hash"
+version = "0.1.0"
+capa = ">=1.0.0"
+
+[dev-dependencies.capa_test]
+git = "https://github.com/nelsonduarte/capa_test"
+tag = "v0.1.0"
+verify_key = "6C1D222D491FB88031E041A536CFB426101AA24B"
