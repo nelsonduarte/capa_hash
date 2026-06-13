@@ -107,6 +107,17 @@ take a `String` and hash its UTF-8 bytes via the language's
 (HMAC itself is built on `sha256_bytes`) and so non-text inputs hash
 without a String detour.
 
+> **Byte contract (read this if you pass `List<Int>` directly).** Every
+> element of a byte input **must be in `0..255`**. A value outside that
+> range is **silently masked to its low 8 bits** (`x & 0xFF`), so `256`
+> becomes `0` and `-1` becomes `255`; the function does **not** reject
+> or report it. The behaviour is identical on both backends. The
+> safe path is to derive bytes from a `String` via the `_utf8`
+> wrappers or `String.bytes()` (always in range), or from a source you
+> have already constrained to `0..255`. Passing arbitrary `Int`s and
+> relying on the masking is unsupported and will produce a digest of
+> *different* bytes than you intended.
+
 ## Implementation notes
 
 SHA-256 is built from the textbook decomposition: a `u32` mask
@@ -134,11 +145,15 @@ guarantee below.
 ## Verification
 
 The algorithms were written **oracle-first**: a Python reference
-([`tools/sha256_ref.py`](./tools/sha256_ref.py), not shipped) mirrors
-the exact decomposition used in Capa and is validated against Python's
+([`tools/sha256_ref.py`](./tools/sha256_ref.py)) mirrors the exact
+decomposition used in Capa and is validated against Python's
 `hashlib` / `hmac` and the official vectors before any Capa code was
-written. The Capa suites then re-assert those same official vectors on
-both backends:
+written. It is a debug anchor that lives in `tools/`: it is **not Capa
+code**, the toolchain only ever loads `.capa` modules, so it is never
+parsed, type-checked, or executed and has no effect on a consumer of
+this library. (`.gitattributes` also marks `tools/` `export-ignore`,
+so it is left out of the SLSA-attested release tarball.) The Capa
+suites then re-assert those same official vectors on both backends:
 
 - **SHA-256, FIPS 180-4:** empty string, `"abc"`, the 448-bit message
   (`abcdbcde...nopq`), and the 896-bit two-block message.

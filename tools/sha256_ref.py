@@ -6,8 +6,10 @@
 # and the intermediates (W[], a..h per round) are compared.
 #
 # Validated against Python's hashlib / hmac and the official NIST
-# FIPS 180-4 + RFC 4231 vectors at the bottom. Not shipped: lives in
-# tools/, outside what `capa install` consumers see.
+# FIPS 180-4 + RFC 4231 vectors at the bottom. This is not Capa code:
+# it lives in tools/ purely as the oracle-first debug anchor. The Capa
+# toolchain only ever loads .capa modules, so this file is never
+# parsed or run and has no effect on a consumer of capa_hash.
 
 MASK = 0xFFFFFFFF
 

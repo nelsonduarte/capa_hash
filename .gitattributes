@@ -1,0 +1,10 @@
+# Keep every committed file LF-terminated on every platform, so a
+# Windows checkout does not rewrite source, fixtures, or signatures
+# to CRLF (which would change bytes the lockfile and tag signature
+# cover).
+* text eol=lf
+
+# The Python reference under tools/ is a debug oracle, not Capa code
+# and never loaded by the toolchain. Exclude it from `git archive`
+# so it stays out of the SLSA-attested release tarball.
+tools/ export-ignore

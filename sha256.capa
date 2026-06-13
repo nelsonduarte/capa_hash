@@ -206,12 +206,23 @@ fun words_to_bytes(words: List<Int>, count: Int) -> List<Int>
 // ---------------------------------------------------------------
 // Public surface: byte and hex digests for both variants, over raw
 // bytes (List<Int>, each 0..255) and over a UTF-8 String.
+//
+// BYTE CONTRACT: in every `_bytes` / `_hex` entry point below, each
+// element of `message` MUST be in 0..255. A value outside that range
+// is SILENTLY masked to its low 8 bits (`& 0xFF`): 256 -> 0, -1 ->
+// 255, with no error reported, identically on both backends. To stay
+// safe, feed bytes from a String (the `_utf8` wrappers, or
+// `String.bytes()`) or from a source already constrained to 0..255.
 
 /// SHA-256 digest of `message` as 32 raw bytes.
+/// `message`: bytes, each in 0..255; out-of-range elements are
+/// silently masked to 8 bits (`& 0xFF`). See the BYTE CONTRACT above.
 pub fun sha256_bytes(message: List<Int>) -> List<Int>
     return words_to_bytes(digest_words(message, iv256()), 8)
 
 /// SHA-256 digest of `message` as a 64-character lowercase hex String.
+/// `message`: bytes, each in 0..255; out-of-range elements are
+/// silently masked to 8 bits (`& 0xFF`). See the BYTE CONTRACT above.
 pub fun sha256_hex(message: List<Int>) -> String
     return to_hex(sha256_bytes(message))
 
@@ -221,10 +232,14 @@ pub fun sha256_hex_utf8(text: String) -> String
 
 /// SHA-224 digest of `message` as 28 raw bytes (the first seven
 /// state words; the eighth is dropped).
+/// `message`: bytes, each in 0..255; out-of-range elements are
+/// silently masked to 8 bits (`& 0xFF`). See the BYTE CONTRACT above.
 pub fun sha224_bytes(message: List<Int>) -> List<Int>
     return words_to_bytes(digest_words(message, iv224()), 7)
 
 /// SHA-224 digest of `message` as a 56-character lowercase hex String.
+/// `message`: bytes, each in 0..255; out-of-range elements are
+/// silently masked to 8 bits (`& 0xFF`). See the BYTE CONTRACT above.
 pub fun sha224_hex(message: List<Int>) -> String
     return to_hex(sha224_bytes(message))
 
