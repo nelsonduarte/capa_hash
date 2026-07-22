@@ -13,8 +13,100 @@
 
 [package]
 name = "capa_hash"
-version = "0.1.2"
-capa = ">=1.1.0"
+version = "0.2.0"
+# THE COMPILER FLOOR IS LOAD-BEARING, and not only as documentation.
+# tools/capa_floor.sh in the release guards reads this key to decide
+# which RELEASED compiler the clean room downloads, so it is the version
+# the published tarball is actually proven to build with. Now that the
+# compiler enforces the floor, this line refuses builds on older
+# compilers rather than being a comment about them.
+#
+# It said ">=1.1.0", and that was a false claim. The fleet floor is
+# >=1.18.1, and here it is structural rather than a fashion:
+#
+#   * PR #85 (released in 1.18.0) changed the module resolver. Every
+#     self-importing library fails below it, and this package
+#     self-imports in THREE files rather than only in the example:
+#     example.capa says `import capa_hash.sha256` / `.hmac` / `.verify`,
+#     hmac.capa says `import capa_hash.sha256` / `.tables`, and
+#     sha256.capa says `import capa_hash.tables`. In the extracted
+#     tarball the project root is named `capa_hash-<tag>`, which a
+#     pre-1.18.0 release resolves to nothing and errors, so on such a
+#     compiler the LIBRARY ITSELF does not build, not merely its
+#     example. The manifest named a compiler that could not build the
+#     thing the manifest describes.
+#   * 1.18.0 compiles everything and then fails `capa test`: under
+#     PyInstaller `sys.executable` is the capa binary itself, which
+#     rejects `-m`, so the clean room's test runner is unusable there.
+#   * 1.18.1 is the first release the whole clean-room flow passes.
+#
+# Narrowing the supported toolchain is why this is a MINOR bump and not
+# a patch: a consumer pinned to an older compiler could obey the v0.1.2
+# manifest and cannot obey this one. Nothing in the library's API
+# changed.
+capa = ">=1.18.1"
+
+# THE CEILING, and why a pure library declares one at all.
+#
+# Without a [capabilities] table `capa --check-capabilities` prints
+# "no package declares a ceiling; nothing to verify" and exits 0. That
+# is a green check that inspected nothing, which is the same shape as
+# the defects the release guards exist to catch, so the choice here is
+# between declaring a ceiling and not running the command.
+#
+# It is worth declaring, and that was measured rather than assumed. A
+# `pub fun load_table_file(fs: Fs, path: String) -> Result<String,
+# IoError>` added to tables.capa is a pure hex encoder silently
+# acquiring the authority to read the filesystem; it COMPILES CLEANLY
+# (`capa --check tables.capa` reports "ok (4 items, 28 expressions
+# typed, 15 bindings)"), so `capa --check` passes it and the release
+# would ship it. With this table it is refused by name:
+#
+#   package 'capa_hash' declares max=['Stdio'] but its own code
+#   introduces 'Fs'
+#
+# WHAT THE CEILING ACTUALLY COVERS, and it is NOT the package.
+# `capa --check-capabilities <entry>` covers the IMPORT CLOSURE OF THE
+# ENTRY IT IS GIVEN. A module that is not the entry, and is not imported
+# (directly or transitively) by it, is never opened. That was measured
+# here rather than reasoned about: with the `Fs` function above sitting
+# in tables.capa, the same command over the five top-level modules gives
+#
+#   tables.capa   exit=1   introduces 'Fs'
+#   sha256.capa   exit=1   introduces 'Fs'     (imports tables)
+#   hmac.capa     exit=1   introduces 'Fs'     (imports sha256, tables)
+#   example.capa  exit=1   introduces 'Fs'     (imports all of them)
+#   verify.capa   exit=0   OK
+#
+# verify.capa exits 0 over a repository that has just acquired Fs,
+# because verify.capa imports nothing. The ceiling is exactly as wide as
+# the set of entries the release hands it, and no wider.
+#
+# Today example.capa's closure happens to be all five modules, so ONE
+# entry would cover the package by accident. The release checks all five
+# anyway, which is strictly stronger: it proves each module stays under
+# the ceiling IN ISOLATION, so a refactor that drops a module out of the
+# closure does not silently drop its check with it.
+# tests/test_release_wiring.sh is what keeps that true: it reads the
+# top-level `*.capa` files off disk and fails if the flow does not name
+# every one of them.
+#
+# WHY "Stdio" AND NOT THE EMPTY LIST. `max` bounds every entry the
+# release checks, and example.capa legitimately holds Stdio to print.
+# `max = []` was measured: it passes tables.capa, sha256.capa, hmac.capa
+# and verify.capa and FAILS example.capa with "declares max=[] but its
+# own code introduces 'Stdio'", which would ship a tarball in which
+# `capa --run example.capa`, a command the README documents, errors. So
+# the library is pure and the example prints, and the ceiling is the
+# tighter of the two claims that still admits both.
+#
+# What this bound catches, exactly: the library acquiring any of Fs,
+# Net, Env, Db, Proc, Random, Clock or Serve. It does NOT catch
+# sha256.capa acquiring Stdio, because the example already introduces
+# it. `capa --manifest sha256.capa` remains the tighter statement: it
+# reports the empty set per function.
+[capabilities]
+max = ["Stdio"]
 
 [dev-dependencies.capa_test]
 git = "https://github.com/nelsonduarte/capa_test"

@@ -1,0 +1,107 @@
+# THE GUARD REVISION THIS REPOSITORY AUDITED, BY CONTENT.
+#
+# .github/workflows/release.yml pins the shared release guards by commit
+# SHA. A SHA is content-addressed and therefore immutable, so the pin
+# cannot be edited under us. What a SHA does NOT do is tell a reader what
+# is in it, and nothing states which BYTES were looked at before pinning
+# them. That is what this file is for.
+#
+# Every file the guards execute is recorded below by SHA-256, taken at
+# the pinned revision. tests/test_guard_pins.sh re-fetches each one and
+# refuses any difference, so:
+#
+#   * bumping the pin without re-auditing goes RED, because the digests
+#     below describe a revision the workflow no longer names;
+#   * a pin that resolves to bytes other than the audited ones goes RED,
+#     which is the falsifiable form of "we ran what we pinned";
+#   * the check runs offline of any claim the guards make about
+#     themselves, before a tag is ever pushed.
+#
+# WHAT REMAINS TRUSTED, stated plainly rather than papered over: that
+# GitHub runs the workflow file living at the pinned SHA. A workflow
+# cannot establish its own identity from inside itself, because a
+# substituted file could simply print the expected answer. That is the
+# platform's guarantee and the reason `uses:@<sha>` is written by SHA.
+# Everything downstream of it is checked here by content.
+#
+# THE DIGESTS BELOW WERE WRITTEN BY `bash fleet/guard_pins.sh`, which
+# fetched each file at 2db00705e05b1774cf41eb58006e6533cfca4d55 and hashed it. Do not
+# hand-edit them, and do not copy this file from another repository: a
+# copied record passes every check while having audited nothing, because
+# the digests are genuinely the pinned revision's bytes. What a copy
+# cannot carry is the reading.
+#
+# TO RE-AUDIT AFTER A PIN BUMP: read the diff, then re-run
+# `bash fleet/guard_pins.sh <this repository>` and rewrite the note below.
+#
+#   https://github.com/nelsonduarte/capa-language/compare/<old>...2db00705e05b1774cf41eb58006e6533cfca4d55
+
+# ---------------------------------------------------------------------
+# AUDIT NOTE.
+#
+# FIRST PIN FOR THIS REPOSITORY, so there is no predecessor revision and
+# no diff to read. All five files below were fetched at
+# 2db00705e05b1774cf41eb58006e6533cfca4d55 and READ IN FULL (1171 lines:
+# 608 + 80 + 112 + 223 + 148), not accepted on their digests. What
+# follows is what that reading found, including the parts that are not
+# reassuring.
+#
+# tools/capa_floor.sh chooses which RELEASED compiler the clean room
+# downloads, by parsing the `capa` key of [package]. Two things it says
+# at this pin are no longer true of the compiler:
+#
+#   * its header (lines 19-24) states that nothing in the compiler
+#     ENFORCES the manifest floor and that this guard is "the only thing
+#     that tests the claim". capa 1.19.0 changed that.
+#   * its accepted grammar is `>=?[0-9][0-9.]*[0-9]`, which admits
+#     two-component and four-component versions the compiler-side parser
+#     now refuses.
+#
+# NEITHER REACHES THIS REPOSITORY. capa.toml declares `capa = ">=1.18.1"`,
+# a plain three-component floor that both grammars read identically as
+# 1.18.1, and it is the only `capa` key inside [package]. Moving the pin
+# to pick up whatever has changed upstream is a fleet-wide decision and
+# is deliberately not made here.
+#
+# tools/clean_room_build.sh runs the consumer flow this repository
+# supplies, inside an empty directory, from the tarball's own bytes, with
+# CAPA_PATH unset. It fails closed on zero --run commands, a non-empty
+# room, a relative room, and a tarball that does not extract to exactly
+# one top-level entry. Its header names the defect that is most relevant
+# to THIS package: capa_authgate shipped a tarball whose .gitattributes
+# export-ignored tools/ while its README told downloaders to run
+# `python tools/nest_vendor.py`, so the documented command was
+# unrunnable for everyone who was not us. capa_hash carries the same
+# `tools/ export-ignore` line, and that was checked against this exact
+# failure mode rather than assumed benign: tools/ holds only
+# sha256_ref.py, a Python oracle the toolchain never loads, no consumer
+# command in either workflow invokes anything under tools/, and the
+# README states the export-ignore where it introduces the file. The line
+# is honest here; the guard would catch it if that ever stopped being so,
+# because the clean room runs the flow against the exported tarball.
+#
+# tools/check_tag_version.sh reads `version` from [package] only, refuses
+# anything other than exactly one match, and refuses the release unless
+# the tag is literally v<version>. capa.toml has one such line
+# (0.2.0), so the first tag this gates must be v0.2.0.
+#
+# tools/verify_guard_digests.sh checks the fetched guard tree against the
+# digests below. Its header is explicit that a workflow cannot establish
+# its own identity from inside itself and that this buys only the
+# run-time-fetched scripts; it rejects `..` in a recorded path and treats
+# an empty digests file as an error rather than a pass.
+#
+# .github/workflows/release-guards.yml fails closed on an empty
+# `job.workflow_sha` before any checkout, and on empty
+# `consumer-commands`. It downloads the released compiler named by the
+# floor and verifies that binary's own SLSA attestation before using it,
+# and it hands the guards `contents: read` and no id-token.
+# ---------------------------------------------------------------------
+
+revision 2db00705e05b1774cf41eb58006e6533cfca4d55
+
+4bee86b2951bd33d3cb8bab6721b2abb30f0533a010dfe93d36ebb275497f1d4  .github/workflows/release-guards.yml
+212b06bb4be0100267fcc98bb2be7f99f4860007f51ae222ed359cddb638eaa2  tools/capa_floor.sh
+420290eb75a96f49aed937be40a3d63d1e2db3aba2de4a4a87c9282eb2a13b38  tools/check_tag_version.sh
+537a7e902540efe4fe5c8f4ae72788b2f3595696b8a7a4bb0a54e19fe523ffcd  tools/clean_room_build.sh
+4fa535d216ecbd647444c80e4cab978ff8e636e1d5edb437842ee561b9f17e0f  tools/verify_guard_digests.sh
