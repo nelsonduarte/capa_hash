@@ -1,0 +1,119 @@
+name: checks
+
+# RUN THE RELEASE-WIRING AND DRIFT CHECKS ON EVERY PUSH.
+#
+# WHY THIS EXISTS. Until it did, tests/test_release_wiring.sh,
+# tests/test_wiring_mutations.sh, tests/test_shared_regions.sh and
+# tests/test_guard_pins.sh appeared in this repository's YAML only
+# inside comments. Four controls whose entire purpose is noticing silent
+# divergence executed zero times per push, in a fleet of seventeen
+# repositories, and would have gone on doing so until someone ran them
+# by hand. A drift check that only runs when a human remembers is a
+# drift check that reports the state of that human's memory.
+#
+# They are cheap: no compiler, no toolchain, no dependencies. grep, awk
+# and sha256sum, plus `gh` for the layers that compare against the
+# canonical bytes upstream.
+#
+# WHAT IS NOT HERE. The .capa test suite is not run by this workflow;
+# that needs a released compiler and belongs with the clean-room
+# rehearsal in guard-selftest.yml, which exercises it against a real
+# tag. This workflow covers the wiring and the copies, which is what
+# nothing covered.
+#
+# THIS FILE IS IN .github/shared-regions.sha256 AS A WHOLE-FILE ENTRY.
+# Every byte of it is compared against the canonical copy in the
+# compiler repository, so DO NOT EDIT IT HERE. If this repository needs
+# more CI, add a separate workflow; that is what every adopter with
+# extra checks has already done.
+#
+# It was briefly left out of the record, on the premise that workflows
+# differ per repository so byte-identity would force forks. The fleet
+# had already falsified that. capa_authgate is the shape that premise
+# predicted would need variation, with five entry points, a negative
+# ceiling entry, a compiler-rejects fixture and nested vendoring, and
+# its copy of this file is byte-identical to a pure library's. That is
+# structural: every repo-specific fact is absorbed by the CONFIG region
+# of the wiring tests one layer down, and this workflow only ever
+# invokes four fixed script paths.
+#
+# Leaving it out also left a one-line bypass. The check that stood in
+# for a digest asked whether each shared file was NAMED by a step, and
+# refused `|| true`, `if: false` and `continue-on-error: true` ON A
+# STEP. A job-level disable is none of those:
+#
+#   wiring:
+#     runs-on: ubuntu-latest
+#     if: false
+#
+# reported 30 passed, 0 failed, 0 skipped, EXIT=0, with the entire
+# apparatus off. That is the line a person writes to park a job, so it
+# was the accident case as much as the attack case. The digest catches
+# it, and catches an emptied `on:` block, a deleted step, and anything
+# else in these bytes.
+#
+# WHAT NO DIGEST REACHES: Actions disabled for the repository, branch
+# protection not requiring these checks, and the required-check
+# configuration. Those live in GitHub settings rather than in git.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wiring:
+    name: Release wiring and shared-file drift
+    runs-on: ubuntu-latest
+
+    env:
+      # `gh` is preinstalled on the runner but unauthenticated without
+      # this. Layer 2 of the drift check and the digest half of the pin
+      # audit both SKIP when `gh auth status` fails, and a SKIP here
+      # would silently reduce both files to their offline halves, which
+      # are the halves that can be satisfied by editing this repository.
+      # The read is of a PUBLIC repository, so the default read-only
+      # token is enough.
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+
+      - name: The release wiring matches this package
+        run: bash tests/test_release_wiring.sh
+
+      - name: The wiring test still bites
+        # Mutates a scratch copy of the workflow and asserts the wiring
+        # test reddens on each one. A wiring test that has stopped
+        # failing is indistinguishable from a wiring test that passes.
+        run: bash tests/test_wiring_mutations.sh
+
+      - name: The copied test files have not drifted from the fleet
+        # `tee` so the assertion below reads the same output the log
+        # shows. `pipefail` makes the script's own status decide.
+        shell: bash
+        run: |
+          set -o pipefail
+          bash tests/test_shared_regions.sh | tee shared-regions.log
+          if ! grep -q '0 skipped' shared-regions.log; then
+            echo "ERROR: the drift check SKIPPED something on a runner that has gh" >&2
+            echo "       layer 2 is what stops an edited body from being re-blessed" >&2
+            echo "       locally, so a skip here is the check running at half strength" >&2
+            exit 1
+          fi
+
+      - name: The pinned release guards are the bytes we audited
+        shell: bash
+        run: |
+          set -o pipefail
+          bash tests/test_guard_pins.sh | tee guard-pins.log
+          if ! grep -q '0 skipped' guard-pins.log; then
+            echo "ERROR: the guard-pin audit SKIPPED something on a runner that has gh" >&2
+            echo "       the offline half only checks that the record is well formed" >&2
+            exit 1
+          fi
