@@ -3,7 +3,7 @@
 Pure-Capa SHA-256, SHA-224, and HMAC-SHA256. Zero capabilities: every
 hash is a `(List<Int>) -> ...` or `(String) -> ...` function over
 bytes. The library's functions declare no capability, and the compiler
-refuses any capability call in them; it reads no global state.
+refuses a call in them on a built-in capability that is not in scope; it reads no global state.
 `capa --manifest` records it (see [Audit claim](#audit-claim)). Output is byte-identical on the Python
 and Wasm backends.
 
