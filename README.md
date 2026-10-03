@@ -2,10 +2,9 @@
 
 Pure-Capa SHA-256, SHA-224, and HMAC-SHA256. Zero capabilities: every
 hash is a `(List<Int>) -> ...` or `(String) -> ...` function over
-bytes. Nothing here can touch the filesystem, the network, the clock,
-randomness, or anything else; the library holds no authority and reads
-no global state. `capa --manifest` proves it (see
-[Audit claim](#audit-claim)). Output is byte-identical on the Python
+bytes. The library's functions declare no capability, and the compiler
+refuses any capability call in them; it reads no global state.
+`capa --manifest` records it (see [Audit claim](#audit-claim)). Output is byte-identical on the Python
 and Wasm backends.
 
 These are **reference implementations, verified against the official
@@ -131,14 +130,13 @@ depends only on the length, never on where the inputs first differ.
 
 A length mismatch returns `false` at once: a tag's length is fixed by
 the algorithm and not secret, so branching on it leaks nothing. Both
-functions carry the `@constant_time` marker, which the analyzer proves
+functions carry the `@constant_time` marker, which the analyzer checks
 (see [Audit claim](#audit-claim)); `strings_equal` is the thin
 `String.bytes()` wrapper for tags carried as text (two hex digests,
 two base64 tokens). The byte contract of the hash functions applies:
 elements outside `0..255` are masked to 8 bits before the compare.
-The functions are pure, with zero capabilities, so passing
-`@secret`-labelled bytes is fine: the `Bool` result is the only thing
-derived, and a pure function with no sinks cannot leak it.
+The functions declare no capability and return only the `Bool`;
+passing `@secret`-labelled bytes to them is the intended use.
 
 Bytes are `List<Int>`, each element in `0..255`. The `_utf8` wrappers
 take a `String` and hash its UTF-8 bytes via the language's
@@ -222,8 +220,9 @@ suites then re-assert those same official vectors on both backends:
   timing, but it pins the property that makes the branchless loop
   correct: the result is right wherever the first difference falls,
   which is exactly what an early-return version would special-case.
-  The `@constant_time` marker, proven by `capa --manifest`, supplies
-  the branchless-shape half of the guarantee.
+  The `@constant_time` marker, checked by the analyzer and reported
+  by `capa --manifest`, supplies the branchless-shape half of the
+  argument.
 
 ```bash
 capa test          # Python backend
@@ -251,7 +250,7 @@ fetches the test library.
 ## Audit claim
 
 A hash library is exactly the kind of dependency a supply-chain
-attacker wants to own, so this one proves the empty claim about itself.
+attacker wants to own, so this one shows its empty capability surface.
 `capa --manifest` over every library module reports, for every function
 in `sha256`, `hmac`, and `tables`:
 
